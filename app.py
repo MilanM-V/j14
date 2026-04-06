@@ -12,6 +12,8 @@ st.title("🧹 Data Cleaning App")
 DEFAULTS = {
   "df_raw": None,
   "df_clean": None,
+  "dfFull": None,
+  "selected_columns": None,
   "cleaning_config": {},
   "file_name": "",
   "outliers_removed": False
@@ -35,14 +37,22 @@ if choix_menu == "Chargement du fichier":
     )
 
     if uploaded_file is not None:
-        if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file, sep=None, engine="python") 
-        else:
-            df = pd.read_excel(uploaded_file)
-        st.success(f"✅ Fichier chargé : {uploaded_file.name}")
-        
+        if st.session_state.file_name != uploaded_file.name:
+            if uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file, sep=None, engine="python") 
+            else:
+                df = pd.read_excel(uploaded_file)
+            st.success(f"✅ Fichier chargé : {uploaded_file.name}")
+            st.session_state.dfFull = df.copy()
+            st.session_state.file_name = uploaded_file.name
+            st.session_state.selected_columns = df.columns.tolist()
+            
+    if st.session_state.dfFull is not None:
+        df = st.session_state.dfFull.copy()
+    
         metrics_container=st.container()
-        colSelectionner=st.multiselect("Choisir plusieurs colonnes",options=df.columns.tolist(),default=df.columns.tolist())
+        colSelectionner=st.multiselect("Choisir plusieurs colonnes",options=df.columns.tolist(),default=st.session_state.selected_columns)
+        st.session_state.selected_columns = colSelectionner
         if colSelectionner:
             df_filtered = df[colSelectionner]
             doublons = df_filtered.duplicated().sum()
@@ -64,6 +74,28 @@ if choix_menu == "Chargement du fichier":
         
         st.dataframe(df_filtered, use_container_width=True)
     
-
+elif choix_menu == "Diagnostic automatique":
+    st.header("📊 Diagnostic automatique")
+    
+    if st.session_state.df_raw is not None:
+        df = st.session_state.df_raw
+        
+        diagnostic_df = pd.DataFrame({
+            "Colonne": df.columns,
+            "Type": df.dtypes.astype(str).values,
+            "% NaN": (df.isna().mean() * 100).values,
+            "Uniques": df.nunique().values
+        })
+        
+        def highlight_nan(val):
+            color = "#dd2100" if val > 0 else "#00cf3e"
+            return f'color: {color}'
+            
+        styled_df = diagnostic_df.style.format({"% NaN": "{:.1f}%"}).map(highlight_nan, subset=["% NaN"])
+        st.write("### Résumé des variables")
+        st.dataframe(styled_df, use_container_width=True, hide_index=True )
+        
+    else:
+        st.info("👋 Veuillez d'abord charger un fichier dans la section 'Chargement du fichier'.")
     
 
